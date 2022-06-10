@@ -1,10 +1,10 @@
-console.log("rodando metrics...")
+import { getAllProjects, getCommentEngagementByContent, getCommentsGroupedByQuestionReport, getUser } from "strateegia-api";
+// import { tabulate } from './d3functions.js';
+import { JSONPath } from 'jsonpath-plus';
 
-import { tabulate } from './d3functions.js';
-import { getAllProjects, getCommentEngagementByContent, getCommentsGroupedByQuestionReport } from './strateegia-api.js';
+// const users = JSON.parse(localStorage.getItem("users") || '');
+const accessToken = localStorage.getItem("accessToken");
 
-const users = JSON.parse(localStorage.getItem("users"));
-const accessToken = localStorage.getItem("strateegiaAccessToken");
 let params = {
   "qtd_questoes_respondidas": 0,
   "qtd_questoes_totais": 0,
@@ -24,30 +24,30 @@ let params = {
 
   "bigger_amount_inner_replies": 0,
   "average_inner_replies_per_comment": 0,
+};
+
+export async function testJsonPathWithStrateegiaAPI() {
+
+  const project = await getAllProjects(accessToken);
+
+  const user = await getUser(accessToken);
+
+  const result = JSONPath({ path: `$..comments[?(@.author.id == '${user.id}')]`, json: project });
+
 }
 
-async function testJsonPathWithStrateegiaAPI() {
-
-  const project = await getAllProjects(localStorage.getItem("strateegiaAccessToken"));
-  console.log("getAllProjects()");
-  console.log(project);
-
-  const result = JSONPath.JSONPath({ path: `$..comments[?(@.author.id == '${userId}')]`, json: project });
-  console.log(result);
-
-}
-
-async function gatherData(projectId, userId, divergencePointId) {
+export async function gatherData(projectId, userId, divergencePointId) {
+  const accessToken = localStorage.getItem("accessToken");
   const divPointReport = await getCommentsGroupedByQuestionReport(accessToken, divergencePointId);
   const commentEngagementByContent = await getCommentEngagementByContent(accessToken, projectId);
   const statisticsForDivergentPoint = commentEngagementByContent.filter(divPoints => divPoints.id == divergencePointId)[0];
   // =======================================
-  params.qtd_questoes_respondidas = JSONPath.JSONPath({ path: `$..comments[?(@.author.id == '${userId}')]`, json: divPointReport }).length;
+  params.qtd_questoes_respondidas = JSONPath({ path: `$..comments[?(@.author.id == '${userId}')]`, json: divPointReport }).length;
   params.qtd_questoes_totais = statisticsForDivergentPoint.question_count;
-  params.qtd_comentarios_usuario = JSONPath.JSONPath({ path: `$..comments..replies[?(@.author.id == '${userId}')]`, json: divPointReport }).length;
+  params.qtd_comentarios_usuario = JSONPath({ path: `$..comments..replies[?(@.author.id == '${userId}')]`, json: divPointReport }).length;
   params.qtd_comentarios_totais = statisticsForDivergentPoint.total_comments_count;
   params.qtd_participantes = statisticsForDivergentPoint.people_active_count;
-  params.total_agreements_user = JSONPath.JSONPath({ path: `$..comments..agreements..[?(@.user_id == '${userId}')]`, json: divPointReport }).length;;
+  params.total_agreements_user = JSONPath({ path: `$..comments..agreements..[?(@.user_id == '${userId}')]`, json: divPointReport }).length;;
   params.total_agreements = statisticsForDivergentPoint.agreements_comments_count;
   params.bigger_amount_agreements_user = "COMPLETAR";
   params.average_agreements_per_comment = "COMPLETAR";
@@ -56,10 +56,10 @@ async function gatherData(projectId, userId, divergencePointId) {
   params.bigger_amount_inner_replies = "COMPLETAR";
   params.average_inner_replies_per_comment = "COMPLETAR";
 
-
 }
 
 async function getDivPointReport(divergencePointId) {
+  const accessToken = localStorage.getItem("accessToken");
   const divPointReport = await getCommentsGroupedByQuestionReport(accessToken, divergencePointId);
   return divPointReport;
 }
@@ -67,7 +67,7 @@ async function getDivPointReport(divergencePointId) {
 async function getAuthorsData(divPointReport) {
   let authorsData = [];
   // const divPointReport = await getCommentsGroupedByQuestionReport(accessToken, divergencePointId);
-  divPointReport.forEach(question => {
+  divPointReport?.forEach(question => {
     let authorsIdsAnsweredThisQuestion = [];
     question.comments.forEach(comment => {
       const authorId = comment.author.id;
@@ -164,7 +164,7 @@ function calculateAuthorScore(author, kitData) {
   /*
   O cálculo da métrica de influência é baseado no trabalho: 
   https://github.com/ricarthlima/ms-strateegia-user-analysis
-
+ 
   Um usuário influente é aquele que (i) responde as questões e (ii) essa sua resposta motiva diálogo, ou seja, gera comentários (divergências e convergências explícitas) e concordâncias" 
   */
 
@@ -246,7 +246,7 @@ function calculateAuthorScore(author, kitData) {
 
   /*
   (f5) Replies Absolutos
-
+ 
   Valor máximo: 1
   Valor esperado para usuário influente: Entre 0,1 e 0,5
   Observação: "total_inner_replies" é o somatório recursivo de todos os comentários gerados por aquela resposta.
@@ -274,12 +274,12 @@ function calculateAuthorScore(author, kitData) {
 
   /*
   Fórmula Final
-
+ 
   (((f1 * 2 + f2)/4) + ((f3*2 + f4)/4 + (f5*2 + f6)/4))/3
-
+ 
   A média ponderada (peso da métrica 2 está implícito pelo fato de haver uma soma de duas sub-métricas que equivalem sozinhas a métrica 1) é em função de acreditarmos que o engajamento gerado pelas respostas do usuário é ainda mais importante do que a quantidade de comentários feitas pelo mesmo.
   */
-  const formulaFinal = ((metrica1) + (metrica2)) / 3;
+  const formulaFinal = ((metrica1) + (metrica2)) / 3; Math.round((formulaFinal.toFixed(2) * 100) / 0.96)
 
   authorScore.f1 = f1.toFixed(2);
   authorScore.f2 = f2.toFixed(2);
@@ -287,26 +287,97 @@ function calculateAuthorScore(author, kitData) {
   authorScore.f4 = f4.toFixed(2);
   authorScore.f5 = f5.toFixed(2);
   authorScore.f6 = f6.toFixed(2);
-  authorScore.metrica1 = metrica1.toFixed(2);
-  authorScore.metrica2 = metrica2.toFixed(2);
-  authorScore.score = formulaFinal.toFixed(2);
+  authorScore.metrica1 = Math.round((metrica1 * 100) / 1.25);
+  authorScore.metrica2 = Math.round((metrica2 * 100));
+  authorScore.score = Math.round((formulaFinal * 100) / 0.96);
 
   return authorScore;
 }
 
 
-export async function executeCalculations(divergencePointId) {
-  // Execute functions
-  // testJsonPathWithStrateegiaAPI();
-  // gatherData(projectId, userId, divergencePointId);
+async function executeCalculations(divergencePointId) {
+
   const divPointReport = await getDivPointReport(divergencePointId);
   const authorsData = await getAuthorsData(divPointReport);
   const kitData = await getKitData(divPointReport, authorsData);
+
   const authorsScores = [];
   authorsData.forEach(author => {
     authorsScores.push(calculateAuthorScore(author, kitData));
   });
   const authorsScoresSorted = authorsScores.sort((a, b) => b.score - a.score);
-  console.log(authorsData);
   return authorsScoresSorted;
 }
+
+async function getMeanForAllDivPoints(divId) {
+
+  const idsArray = divId.split(',');
+  
+  const allScores = await Promise.all(
+    idsArray.map((id) => {
+      return executeCalculations(id);
+    })
+  ).then(data => data.flat())
+
+  const occurrences = allScores.reduce((acc, { name }) => {
+    return { ...acc, [name]: (acc[name] || 0) + 1 }
+  }, []);
+
+  const result = getResult(allScores, occurrences, divId);
+
+  return result;
+}
+
+function getResult(allScores, occurrences, divId) {
+
+  const result = Object.keys(occurrences).map(occurrence => {
+    const singleUser = allScores.filter(({ name }) => name === occurrence)
+      .reduce(calculateUserScore, [])
+      .map(user => calculateUserScoreMean(user, divId));
+    return singleUser
+  })
+  return result.flat();
+}
+
+function calculateUserScore(acc, { name, f1, f2, f3, f4, f5, f6, id, metrica1, metrica2, score }) {
+
+  const calculate = (value, key) => {
+    return Number(value) + (acc[0]?.[key] || 0)
+  }
+
+  return [{
+    'name': name,
+    'id': id,
+    'f1': calculate(f1, 'f1'),
+    'f2': calculate(f2, 'f2'),
+    'f3': calculate(f3, 'f3'),
+    'f4': calculate(f4, 'f4'),
+    'f5': calculate(f5, 'f5'),
+    'f6': calculate(f6, 'f6'),
+    'metrica1': calculate(metrica1, 'metrica1'),
+    'metrica2': calculate(metrica2, 'metrica2'),
+    'score': calculate(score, 'score')
+  }]
+}
+
+function calculateUserScoreMean(user, divId) {
+
+  const allDivPoints = divId.length;
+  const getMean = (key) => (user[key] / allDivPoints).toFixed(2)
+  const meanUser = {
+    'name': user.name,
+    'f1': getMean('f1'),
+    'f2': getMean('f2'),
+    'f3': getMean('f3'),
+    'f4': getMean('f4'),
+    'f5': getMean('f5'),
+    'f6': getMean('f6'),
+    'metrica1': getMean('metrica1'),
+    'metrica2': getMean('metrica2'),
+    'score': getMean('score')
+  }
+  return meanUser
+}
+
+
+export { executeCalculations, getMeanForAllDivPoints }
